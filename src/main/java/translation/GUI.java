@@ -1,7 +1,11 @@
 package translation;
 
 import javax.swing.*;
-import java.awt.event.*;
+import javax.swing.event.ListSelectionListener;
+import java.awt.*;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Optional;
 
 
 // TODO Task D: Update the GUI for the program to align with UI shown in the README example.
@@ -15,69 +19,98 @@ public class GUI {
         SwingUtilities.invokeLater(() -> {
 
 
-            JPanel languagePanel = new JPanel();
-            JTextField languageField = new JTextField(10);
-            languagePanel.add(new JLabel("Language:"));
-            Translator translator = new CanadaTranslator();
+            final Translator translator = new JSONTranslator();
+            final CountryCodeConverter countryConv = new CountryCodeConverter();
+            final LanguageCodeConverter langConv = new LanguageCodeConverter();
 
-            // create combobox, add country codes into it, and add it to our panel
-            JComboBox<String> languageComboBox = new JComboBox<>();
-            for(String countryCode : translator.getLanguageCodes()) {
-                languageComboBox.addItem(countryCode);
-            }
-            languagePanel.add(languageComboBox);
-
-            JPanel countryPanel = new JPanel();
-            JTextField countryField = new JTextField(10);
-            countryPanel.add(new JLabel(":"));
-            JList countryList = new JList();
-            countryPanel.add(countryList);
-
-
-            JPanel buttonPanel = new JPanel();
-            JButton submit = new JButton("Submit");
-            buttonPanel.add(submit);
-
-            JLabel resultLabelText = new JLabel("Translation:");
-            buttonPanel.add(resultLabelText);
-            JLabel resultLabel = new JLabel("\t\t\t\t\t\t\t");
-            buttonPanel.add(resultLabel);
-
-
-            // adding listener for when the user clicks the submit button
-            submit.addActionListener(new ActionListener() {
-                @Override
-                public void actionPerformed(ActionEvent e) {
-                    String language = languageField.getText();
-                    String country = countryField.getText();
-
-                    // for now, just using our simple translator, but
-                    // we'll need to use the real JSON version later.
-                    Translator translator = new CanadaTranslator();
-
-                    String result = translator.translate(country, language);
-                    if (result == null) {
-                        result = "no translation found!";
-                    }
-                    resultLabel.setText(result);
-
-                }
-
-            });
-
-            JPanel mainPanel = new JPanel();
-            mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
-            mainPanel.add(languagePanel);
-            mainPanel.add(countryPanel);
-            mainPanel.add(buttonPanel);
 
             JFrame frame = new JFrame("Country Name Translator");
-            frame.setContentPane(mainPanel);
             frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+
+            JPanel main = new JPanel();
+            main.setLayout(new BoxLayout(main, BoxLayout.Y_AXIS));
+            main.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+
+            JPanel langRow = new JPanel(new FlowLayout(FlowLayout.LEFT));
+            langRow.add(new JLabel("Language:"));
+            JComboBox<String> languageCombo = new JComboBox<>();
+            langRow.add(languageCombo);
+
+
+            JPanel transRow = new JPanel(new FlowLayout(FlowLayout.LEFT));
+            JLabel transTitle = new JLabel("Translation: ");
+            JLabel transValue = new JLabel("—");
+            transRow.add(transTitle);
+            transRow.add(transValue);
+
+
+            DefaultListModel<String> countryModel = new DefaultListModel<>();
+
+            final Map<String, String> countryNameToCode = new LinkedHashMap<>();
+            for (String alpha3 : translator.getCountryCodes()) {
+                String display = Optional.ofNullable(countryConv.fromCountryCode(alpha3)).orElse(alpha3);
+                countryModel.addElement(display);
+                countryNameToCode.put(display, alpha3);
+            }
+            JList<String> countryList = new JList<>(countryModel);
+            countryList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+            countryList.setVisibleRowCount(12);
+            JScrollPane countryScroll = new JScrollPane(countryList);
+
+
+            final Map<String, String> langNameToCode = new LinkedHashMap<>();
+            languageCombo.removeAllItems();
+            for (String code : translator.getLanguageCodes()) {
+                String display = Optional.ofNullable(langConv.fromLanguageCode(code)).orElse(code);
+                languageCombo.addItem(display);
+                langNameToCode.put(display, code); // remember exact alpha-2
+            }
+            if (languageCombo.getItemCount() > 0) languageCombo.setSelectedIndex(0);
+
+
+            Runnable refreshTranslation = () -> {
+                String countryDisplay = countryList.getSelectedValue();
+                String langDisplay = (String) languageCombo.getSelectedItem();
+
+                if (countryDisplay == null || langDisplay == null) {
+                    transValue.setText("—");
+                    return;
+                }
+
+                String countryCode = countryNameToCode.get(countryDisplay);
+                String langCode = langNameToCode.get(langDisplay);
+
+                String result = (countryCode == null || langCode == null)
+                        ? null
+                        : translator.translate(countryCode, langCode);
+
+                transValue.setText(result != null ? result : "no translation found!");
+            };
+
+
+            languageCombo.addActionListener(e -> refreshTranslation.run());
+            countryList.addListSelectionListener((ListSelectionListener) e -> {
+                if (!e.getValueIsAdjusting()) refreshTranslation.run();
+            });
+
+
+            main.add(langRow);
+            main.add(Box.createVerticalStrut(8));
+            main.add(transRow);
+            main.add(Box.createVerticalStrut(8));
+            main.add(countryScroll);
+
+            frame.setContentPane(main);
             frame.pack();
+            frame.setLocationRelativeTo(null);
             frame.setVisible(true);
 
 
+            if (!countryModel.isEmpty()) {
+                countryList.setSelectedIndex(0);
+                refreshTranslation.run();
+            }
         });
     }
 }
