@@ -39,7 +39,7 @@ public class GUI {
 
 
             JPanel transRow = new JPanel(new FlowLayout(FlowLayout.LEFT));
-            JLabel transTitle = new JLabel("Translation: ");
+            JLabel transTitle = new JLabel("                       Translation: ");
             JLabel transValue = new JLabel("—");
             transRow.add(transTitle);
             transRow.add(transValue);
